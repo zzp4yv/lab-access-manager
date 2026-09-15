@@ -65,57 +65,46 @@ jobs:
           cache-to: type=gha,mode=max
 
   deploy:
-    name: Deploy no host Docker (Proxmox/gargantua via Pangolin)
+    name: Deploy no host Docker (dockeroxi, via runner self-hosted)
     needs: build-and-push
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, dockeroxi]
     environment: production
+    env:
+      DEPLOY_PATH: /opt/lab-access-manager
     steps:
-      # O runner do GitHub Actions não está na VPN Pangolin do
-      # Instituto Oxigênio. A estratégia aqui é conectar via SSH ao
-      # host de deploy (que É acessível — por IP público/porta
-      # liberada, ou porque o runner está registrado dentro da VPN,
-      # ex.: um self-hosted runner em `gargantua`) e disparar
-      # `docker compose pull && up -d` lá.
-      #
-      # Segredos necessários no repositório GitHub (Settings > Secrets
-      # and variables > Actions), a preencher pela equipe:
-      #   DEPLOY_HOST      - hostname/IP do host Docker de destino
-      #   DEPLOY_USER      - usuário SSH com permissão de docker
-      #   DEPLOY_SSH_KEY   - chave privada SSH (par dedicado ao deploy)
-      #   DEPLOY_PORT      - porta SSH (opcional, padrão 22)
-      #   DEPLOY_PATH      - diretório no host onde está o docker-compose.yml
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          port: ${{ secrets.DEPLOY_PORT || 22 }}
-          script: |
-            set -euo pipefail
-            cd "${{ secrets.DEPLOY_PATH }}"
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-            export IMAGE_TAG="${{ needs.build-and-push.outputs.image-tag }}"
-            docker compose pull
-            docker compose up -d --remove-orphans
-            docker image prune -f
+      # O host de deploy (dockeroxi) só é alcançável dentro da VPN
+      # Pangolin do Instituto Oxigênio, então um runner hospedado pelo
+      # GitHub não conseguiria SSHar até ele. Em vez disso, um runner
+      # self-hosted roda como serviço systemd no próprio dockeroxi
+      # (usuário dedicado `ghrunner`, no grupo `docker`) e este job
+      # executa localmente, sem precisar de SSH nem de segredos de
+      # conexão. O `docker-compose.yml` de produção e o `.env` com as
+      # variáveis reais (Pangolin, Next Term etc.) já vivem em
+      # DEPLOY_PATH no host.
+      - name: Login no GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Deploy (docker compose pull + up)
+        run: |
+          set -euo pipefail
+          cd "$DEPLOY_PATH"
+          export IMAGE_TAG="${{ needs.build-and-push.outputs.image-tag }}"
+          docker compose --env-file .env pull
+          docker compose --env-file .env up -d --remove-orphans
+          docker image prune -f
 
       - name: Verificar saúde do serviço após deploy
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          port: ${{ secrets.DEPLOY_PORT || 22 }}
-          script: |
-            set -euo pipefail
-            for i in $(seq 1 10); do
-              if curl -fsS "http://localhost:${HOST_PORT:-8000}/api/health"; then
-                echo "Serviço saudável."
-                exit 0
-              fi
-              echo "Aguardando serviço ficar saudável... ($i/10)"
-              sleep 5
-            done
-            echo "Serviço não respondeu com saúde OK após o deploy." >&2
-            exit 1
+        run: |
+          set -euo pipefail
+          cd "$DEPLOY_PATH"
+          set -a; source .env; set +a
+          for i in $(seq 1 10); do
+            if curl -fsS "http://localhost:${HOST_PORT:-8000}/api/health"; then
+              echo "Serviço saudável."
+              exit 0
+            fi
+            echo "Aguardando serviço ficar saudável... ($i/10)"
+            sleep 5
+          done
+          echo "Serviço não respondeu com saúde OK após o deploy." >&2
+          exit 1
