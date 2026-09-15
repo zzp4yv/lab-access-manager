@@ -1,32 +1,79 @@
 # Compose de PRODUÇÃO: usado no host de deploy (gargantua/Proxmox ou
-# uma VM/CT dedicada) pelo workflow .github/workflows/cd.yml. Diferente
-# de docker-compose.yml (uso local/dev, que builda a imagem), este
-# arquivo apenas consome a imagem já publicada no GitHub Container
+# uma VM/CT dedicada), seja via `docker compose` na linha de comando,
+# seja colado direto no Portainer (Stacks -> Add stack -> Web editor).
+# Diferente de docker-compose.yml (uso local/dev, que builda a imagem),
+# este arquivo apenas consome a imagem já publicada no GitHub Container
 # Registry — nenhum build acontece no host de produção.
 #
-# Setup esperado no host de deploy (uma única vez):
-#   1. Criar o diretório apontado por DEPLOY_PATH (secret do GitHub Actions).
-#   2. Copiar este arquivo para lá como `docker-compose.yml` (ou manter
-#      este nome e ajustar o script do workflow).
-#   3. Criar `.env` no mesmo diretório a partir de `.env.example`.
-#   4. Colocar a chave SSH de provisionamento em `./secrets/` (ver `.env.example`).
+# IMPORTANTE: este arquivo NÃO usa `env_file: .env` — propositalmente,
+# porque isso exige um arquivo `.env` físico no mesmo diretório do
+# compose, o que o Portainer (modo "Web editor"/stack colada) não cria
+# sozinho. Em vez disso, toda variável é interpolada via ${VAR:-padrão}
+# diretamente no `environment:` de cada serviço. Duas formas de
+# fornecer os valores:
+#
+#   A) Linha de comando: `docker compose --env-file .env up -d`
+#      (crie `.env` a partir de `.env.example` no mesmo diretório).
+#
+#   B) Portainer: em "Add stack", na seção "Environment variables",
+#      cole o conteúdo do seu `.env` (aceita colar em bloco no formato
+#      KEY=VALUE, uma por linha) — o Portainer interpola essas
+#      variáveis no lugar de ${VAR} antes de gerar o compose final,
+#      sem precisar de nenhum arquivo em disco.
+#
+# Setup esperado no host de deploy (uma única vez), antes do primeiro
+# deploy:
+#   1. Criar o diretório de segredos, ex.: /opt/lab-access-manager/secrets/
+#   2. Colocar lá a chave SSH de provisionamento (id_ed25519_provisioning)
+#      e o known_hosts de tars/case (ver docs/RUNBOOK.md). Se ainda não
+#      tiver essas chaves (rodando em PROVISIONING_MODE=dry_run), pode
+#      criar arquivos vazios só para o bind mount não falhar:
+#      touch id_ed25519_provisioning known_hosts
+#   3. Apontar SSH_PROVISIONING_KEY_PATH / SSH_KNOWN_HOSTS_PATH abaixo
+#      para esse diretório (caminho ABSOLUTO no host — bind mounts
+#      relativos não funcionam de forma confiável a partir do Portainer).
 services:
   app:
-    image: ghcr.io/${GITHUB_REPOSITORY:-oxigenio/lab-access-manager}:${IMAGE_TAG:-latest}
+    image: ghcr.io/${GITHUB_REPOSITORY:-zzp4yv/lab-access-manager}:${IMAGE_TAG:-latest}
     container_name: lab-access-manager
     restart: unless-stopped
     ports:
       - "${HOST_PORT:-8000}:8000"
-    env_file:
-      - .env
     environment:
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      DEBUG: ${DEBUG:-false}
       DATABASE_URL: sqlite:////app/data/lab_access.db
       UPLOAD_DIR: /app/data/uploads
       FRONTEND_DIR: /app/frontend
+      SECRET_KEY: ${SECRET_KEY:?defina SECRET_KEY nas variaveis de ambiente do stack}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-480}
+      BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-Administrador Oxigenio}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-20}
+      ALLOWED_UPLOAD_EXTENSIONS: ${ALLOWED_UPLOAD_EXTENSIONS:-pdf,doc,docx,png,jpg,jpeg,txt}
+      DEFAULT_ACCESS_DAYS: ${DEFAULT_ACCESS_DAYS:-30}
+      MAX_ACCESS_DAYS: ${MAX_ACCESS_DAYS:-365}
+      DATA_RETENTION_DAYS_AFTER_REVOKE: ${DATA_RETENTION_DAYS_AFTER_REVOKE:-30}
+      LIFECYCLE_CHECK_INTERVAL_MINUTES: ${LIFECYCLE_CHECK_INTERVAL_MINUTES:-60}
+      LINUX_HOSTS: ${LINUX_HOSTS:-tars,case}
+      LINUX_SSH_PORT: ${LINUX_SSH_PORT:-22}
+      LINUX_SSH_ADMIN_USER: ${LINUX_SSH_ADMIN_USER:-labadmin}
+      LINUX_SSH_PRIVATE_KEY_PATH: /app/secrets/id_ed25519_provisioning
+      LINUX_DEFAULT_GROUP: ${LINUX_DEFAULT_GROUP:-lab-visitantes}
+      LINUX_HOME_BASE: ${LINUX_HOME_BASE:-/home}
+      PANGOLIN_API_URL: ${PANGOLIN_API_URL:-}
+      PANGOLIN_API_TOKEN: ${PANGOLIN_API_TOKEN:-}
+      PANGOLIN_ORG_ID: ${PANGOLIN_ORG_ID:-}
+      PANGOLIN_SITE_ID: ${PANGOLIN_SITE_ID:-}
+      NEXT_TERM_API_URL: ${NEXT_TERM_API_URL:-}
+      NEXT_TERM_API_TOKEN: ${NEXT_TERM_API_TOKEN:-}
+      PROVISIONING_MODE: ${PROVISIONING_MODE:-dry_run}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
     volumes:
       - lab_access_data:/app/data
-      - ${SSH_PROVISIONING_KEY_PATH:-./secrets/id_ed25519_provisioning}:/app/secrets/id_ed25519_provisioning:ro
-      - ${SSH_KNOWN_HOSTS_PATH:-./secrets/known_hosts}:/home/appuser/.ssh/known_hosts:ro
+      - ${SSH_PROVISIONING_KEY_PATH:-/opt/lab-access-manager/secrets/id_ed25519_provisioning}:/app/secrets/id_ed25519_provisioning:ro
+      - ${SSH_KNOWN_HOSTS_PATH:-/opt/lab-access-manager/secrets/known_hosts}:/home/appuser/.ssh/known_hosts:ro
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8000/api/health"]
       interval: 30s

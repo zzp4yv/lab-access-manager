@@ -26,15 +26,51 @@ Pangolin e Next Term).
 
 ## 2. Host de deploy (gargantua/Proxmox ou VM/CT dedicada)
 
+`docker-compose.prod.yml` não depende de um arquivo `.env` físico
+(propositalmente — veja o comentário no topo do arquivo): toda
+variável é interpolada via `${VAR:-padrão}`, então funciona tanto pela
+linha de comando (com `--env-file`) quanto colada direto no Portainer.
+
+### Opção A — linha de comando (SSH direto no host)
+
 1. Instalar Docker + Docker Compose plugin.
 2. Criar o diretório `DEPLOY_PATH` e copiar para lá:
    - `docker-compose.prod.yml` → renomear para `docker-compose.yml`.
    - `.env` preenchido a partir de `.env.example` (ver seção 4).
-   - `secrets/id_ed25519_provisioning` (chave privada de automação).
+   - `secrets/id_ed25519_provisioning` (chave privada de automação) —
+     se ainda estiver em `PROVISIONING_MODE=dry_run`, um arquivo vazio
+     (`touch`) já é suficiente para o bind mount não falhar.
    - `secrets/known_hosts` (chaves públicas SSH de `tars` e `case`,
      geradas com `ssh-keyscan tars case >> known_hosts` a partir de um
      host confiável).
-3. Garantir que este host tenha rota de rede até `tars`, `case`, o
+3. `docker compose --env-file .env up -d`.
+
+### Opção B — Portainer (Stacks → Add stack)
+
+1. Crie antes, no host, o diretório de segredos (ex.:
+   `/opt/lab-access-manager/secrets/`) com `id_ed25519_provisioning` e
+   `known_hosts` (vazios está OK em `dry_run`) — bind mounts do
+   Portainer precisam de caminho absoluto existente no host.
+2. **Web editor**: cole o conteúdo de `docker-compose.prod.yml`.
+   **Git repository**: aponte para `https://github.com/zzp4yv/lab-access-manager`,
+   compose path `docker-compose.prod.yml` (repo privado exige
+   credenciais git nas configurações da stack).
+3. Na seção **Environment variables** da stack, cole o conteúdo do seu
+   `.env` (Portainer aceita colar em bloco `KEY=VALUE`, uma por linha)
+   — isso substitui a necessidade de um arquivo `.env` no disco, que é
+   exatamente o que causava o erro `env file ... not found`. No
+   mínimo, defina `SECRET_KEY` (obrigatório, o deploy falha sem ele de
+   propósito), `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_PASSWORD`,
+   `SSH_PROVISIONING_KEY_PATH=/opt/lab-access-manager/secrets/id_ed25519_provisioning`
+   e `SSH_KNOWN_HOSTS_PATH=/opt/lab-access-manager/secrets/known_hosts`.
+4. Se o pacote da imagem no GHCR estiver privado (repo é privado por
+   padrão), cadastre um registro em *Registries* apontando para
+   `ghcr.io` com usuário `zzp4yv` + um PAT com escopo `read:packages`
+   — ou torne o pacote público em GitHub → Packages → Package
+   settings.
+5. Faça o deploy da stack.
+
+Garanta que este host tenha rota de rede até `tars`, `case`, o
    endpoint do Pangolin e o endpoint do Next Term (via VPN Pangolin,
    se for o caso).
 

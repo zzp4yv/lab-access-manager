@@ -1,3 +1,11 @@
+# Compose de DESENVOLVIMENTO/LOCAL: builda a imagem a partir do
+# código-fonte (ver docker-compose.prod.yml para o compose de produção,
+# que consome a imagem já publicada no GHCR).
+#
+# Uso: `cp .env.example .env` (edite os valores) e depois
+# `docker compose up --build`. O `docker compose` CLI lê o `.env` do
+# diretório atual automaticamente para preencher os ${VAR} abaixo — não
+# é necessário (nem usado aqui) um `env_file:` dentro do serviço.
 services:
   app:
     build:
@@ -8,12 +16,37 @@ services:
     restart: unless-stopped
     ports:
       - "${HOST_PORT:-8000}:8000"
-    env_file:
-      - .env
     environment:
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      DEBUG: ${DEBUG:-false}
       DATABASE_URL: sqlite:////app/data/lab_access.db
       UPLOAD_DIR: /app/data/uploads
       FRONTEND_DIR: /app/frontend
+      SECRET_KEY: ${SECRET_KEY:-changeme-generate-a-real-secret}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-480}
+      BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-Administrador Oxigenio}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-20}
+      ALLOWED_UPLOAD_EXTENSIONS: ${ALLOWED_UPLOAD_EXTENSIONS:-pdf,doc,docx,png,jpg,jpeg,txt}
+      DEFAULT_ACCESS_DAYS: ${DEFAULT_ACCESS_DAYS:-30}
+      MAX_ACCESS_DAYS: ${MAX_ACCESS_DAYS:-365}
+      DATA_RETENTION_DAYS_AFTER_REVOKE: ${DATA_RETENTION_DAYS_AFTER_REVOKE:-30}
+      LIFECYCLE_CHECK_INTERVAL_MINUTES: ${LIFECYCLE_CHECK_INTERVAL_MINUTES:-60}
+      LINUX_HOSTS: ${LINUX_HOSTS:-tars,case}
+      LINUX_SSH_PORT: ${LINUX_SSH_PORT:-22}
+      LINUX_SSH_ADMIN_USER: ${LINUX_SSH_ADMIN_USER:-labadmin}
+      LINUX_SSH_PRIVATE_KEY_PATH: /app/secrets/id_ed25519_provisioning
+      LINUX_DEFAULT_GROUP: ${LINUX_DEFAULT_GROUP:-lab-visitantes}
+      LINUX_HOME_BASE: ${LINUX_HOME_BASE:-/home}
+      PANGOLIN_API_URL: ${PANGOLIN_API_URL:-}
+      PANGOLIN_API_TOKEN: ${PANGOLIN_API_TOKEN:-}
+      PANGOLIN_ORG_ID: ${PANGOLIN_ORG_ID:-}
+      PANGOLIN_SITE_ID: ${PANGOLIN_SITE_ID:-}
+      NEXT_TERM_API_URL: ${NEXT_TERM_API_URL:-}
+      NEXT_TERM_API_TOKEN: ${NEXT_TERM_API_TOKEN:-}
+      PROVISIONING_MODE: ${PROVISIONING_MODE:-dry_run}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
     volumes:
       # Persiste o banco SQLite e os documentos anexados fora do container.
       - lab_access_data:/app/data
