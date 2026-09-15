@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login — Gestão de Acessos ao Laboratório</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div class="auth-screen">
+    <div class="auth-card">
+      <h1>Instituto Oxigênio</h1>
+      <p class="subtitle">Gestão de acessos ao laboratório</p>
+
+      <div id="alert-box"></div>
+
+      <form id="login-form">
+        <div class="form-field" style="margin-bottom: 14px;">
+          <label for="email">Email do administrador</label>
+          <input type="email" id="email" required autocomplete="username" />
+        </div>
+        <div class="form-field" style="margin-bottom: 20px;">
+          <label for="password">Senha</label>
+          <input type="password" id="password" required autocomplete="current-password" />
+        </div>
+        <button type="submit" class="btn btn-primary" style="width: 100%;" id="login-btn">
+          Entrar
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/auth.js"></script>
+</body>
+</html>

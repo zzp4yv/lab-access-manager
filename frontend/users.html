@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Usuários & Administradores — Gestão de Acessos ao Laboratório</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div id="topbar-root"></div>
+
+    <main class="content">
+      <h1 class="page-title">Usuários & Administradores</h1>
+      <div id="alert-box"></div>
+
+      <div class="tabs">
+        <button class="tab-button active" data-tab="tab-users">Usuários do laboratório</button>
+        <button class="tab-button" data-tab="tab-new-user">Novo usuário</button>
+        <button class="tab-button" data-tab="tab-admins">Administradores</button>
+      </div>
+
+      <!-- ---------- Lista de usuários ---------- -->
+      <section id="tab-users" class="tab-content active">
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Usuários cadastrados</h2>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <select id="status-filter">
+                <option value="">Todos os status</option>
+                <option value="pending">Pendente</option>
+                <option value="active">Ativo</option>
+                <option value="revoked">Revogado</option>
+                <option value="purged">Dados removidos</option>
+                <option value="failed">Falha</option>
+              </select>
+              <button class="btn btn-secondary btn-sm" id="refresh-users-btn">Atualizar</button>
+            </div>
+          </div>
+          <div id="users-table"></div>
+        </div>
+      </section>
+
+      <!-- ---------- Novo usuário ---------- -->
+      <section id="tab-new-user" class="tab-content">
+        <div class="panel">
+          <div class="panel-header"><h2>Cadastrar novo usuário</h2></div>
+          <p class="helper-text" style="margin-bottom:16px;">
+            Ao salvar, o usuário é criado e o provisionamento automático é disparado
+            imediatamente nos ambientes: Linux (tars e case), VPN Pangolin e Next Term
+            (shell e RDP).
+          </p>
+          <div id="new-user-alert"></div>
+          <form id="new-user-form">
+            <div class="form-grid">
+              <div class="form-field">
+                <label for="full_name">Nome completo *</label>
+                <input type="text" id="full_name" required />
+              </div>
+              <div class="form-field">
+                <label for="matricula">Matrícula *</label>
+                <input type="text" id="matricula" required />
+              </div>
+              <div class="form-field">
+                <label for="personal_email">Email pessoal *</label>
+                <input type="email" id="personal_email" required />
+              </div>
+              <div class="form-field">
+                <label for="phone">Telefone *</label>
+                <input type="tel" id="phone" required placeholder="(11) 99999-0000" />
+              </div>
+              <div class="form-field">
+                <label for="access_days">Tempo de acesso (dias) *</label>
+                <input type="number" id="access_days" min="1" max="365" value="30" required />
+              </div>
+              <div class="form-field">
+                <label for="document">Documento anexado (sobre o que deseja testar)</label>
+                <input type="file" id="document" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt" />
+              </div>
+              <div class="form-field full-width">
+                <label for="test_description">O que deseja testar no laboratório *</label>
+                <textarea id="test_description" required></textarea>
+              </div>
+            </div>
+            <div style="margin-top:18px;">
+              <button type="submit" class="btn btn-primary" id="submit-user-btn">Cadastrar e provisionar</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <!-- ---------- Administradores ---------- -->
+      <section id="tab-admins" class="tab-content">
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Administradores</h2>
+            <span class="helper-text">Administradores não são provisionados nos ambientes do laboratório.</span>
+          </div>
+          <div id="admins-table"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header"><h2>Novo administrador</h2></div>
+          <div id="new-admin-alert"></div>
+          <form id="new-admin-form">
+            <div class="form-grid">
+              <div class="form-field">
+                <label for="admin_full_name">Nome completo *</label>
+                <input type="text" id="admin_full_name" required />
+              </div>
+              <div class="form-field">
+                <label for="admin_email">Email *</label>
+                <input type="email" id="admin_email" required />
+              </div>
+              <div class="form-field">
+                <label for="admin_password">Senha (mín. 8 caracteres) *</label>
+                <input type="password" id="admin_password" required minlength="8" />
+              </div>
+            </div>
+            <div style="margin-top:18px;">
+              <button type="submit" class="btn btn-primary" id="submit-admin-btn">Adicionar administrador</button>
+            </div>
+          </form>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script src="/js/users.js"></script>
+  <script src="/js/admins.js"></script>
+</body>
+</html>

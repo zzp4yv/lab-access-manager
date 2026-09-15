@@ -1,0 +1,16 @@
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+exclude = ["data"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+# E501: comprimento de linha já coberto por line-length acima.
+# B008: `Depends(...)`/`File(...)` em valores-padrão de parâmetro é o
+# padrão idiomático do FastAPI para injeção de dependências — não é um
+# defeito real neste contexto (ver documentação oficial do FastAPI).
+ignore = ["E501", "B008"]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/main.py"]

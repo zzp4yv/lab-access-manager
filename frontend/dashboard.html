@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Painel — Gestão de Acessos ao Laboratório</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div id="topbar-root"></div>
+
+    <main class="content">
+      <h1 class="page-title">Painel de gestão</h1>
+      <div id="alert-box"></div>
+
+      <div class="stats-grid" id="stats-grid">
+        <!-- preenchido via JS -->
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Usuários por ambiente</h2>
+          <button class="btn btn-secondary btn-sm" id="refresh-btn">Atualizar</button>
+        </div>
+        <div id="env-breakdown"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Últimos acessos</h2>
+          <a class="btn btn-secondary btn-sm" href="/users.html">Ver todos os usuários</a>
+        </div>
+        <div id="recent-access-table"></div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script src="/js/dashboard.js"></script>
+</body>
+</html>

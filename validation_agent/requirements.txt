@@ -1,0 +1,3 @@
+# O agente de validação reutiliza as mesmas ferramentas de
+# desenvolvimento do backend (ruff, pytest, pytest-cov, radon).
+-r ../backend/requirements-dev.txt

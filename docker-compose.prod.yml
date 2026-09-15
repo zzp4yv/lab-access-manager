@@ -1,0 +1,39 @@
+# Compose de PRODUÇÃO: usado no host de deploy (gargantua/Proxmox ou
+# uma VM/CT dedicada) pelo workflow .github/workflows/cd.yml. Diferente
+# de docker-compose.yml (uso local/dev, que builda a imagem), este
+# arquivo apenas consome a imagem já publicada no GitHub Container
+# Registry — nenhum build acontece no host de produção.
+#
+# Setup esperado no host de deploy (uma única vez):
+#   1. Criar o diretório apontado por DEPLOY_PATH (secret do GitHub Actions).
+#   2. Copiar este arquivo para lá como `docker-compose.yml` (ou manter
+#      este nome e ajustar o script do workflow).
+#   3. Criar `.env` no mesmo diretório a partir de `.env.example`.
+#   4. Colocar a chave SSH de provisionamento em `./secrets/` (ver `.env.example`).
+services:
+  app:
+    image: ghcr.io/${GITHUB_REPOSITORY:-oxigenio/lab-access-manager}:${IMAGE_TAG:-latest}
+    container_name: lab-access-manager
+    restart: unless-stopped
+    ports:
+      - "${HOST_PORT:-8000}:8000"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: sqlite:////app/data/lab_access.db
+      UPLOAD_DIR: /app/data/uploads
+      FRONTEND_DIR: /app/frontend
+    volumes:
+      - lab_access_data:/app/data
+      - ${SSH_PROVISIONING_KEY_PATH:-./secrets/id_ed25519_provisioning}:/app/secrets/id_ed25519_provisioning:ro
+      - ${SSH_KNOWN_HOSTS_PATH:-./secrets/known_hosts}:/home/appuser/.ssh/known_hosts:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  lab_access_data:
+    driver: local
