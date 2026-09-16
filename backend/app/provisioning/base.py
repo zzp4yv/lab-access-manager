@@ -71,3 +71,17 @@ def slugify_username(full_name: str, matricula: str) -> str:
     base = re.sub(r"[^a-z0-9]", "", base)[:12] or "user"
     suffix = re.sub(r"[^a-zA-Z0-9]", "", matricula)[-6:].lower()
     return f"lab-{base}-{suffix}"
+
+
+def nextterm_username(full_name: str, matricula: str) -> str:
+    """Gera o username do Next Term: primeiro nome + "F" + matrícula
+    completa (sem truncar), ex.: "Rogério" + "0135019" -> "rogerioF0135019"."""
+    import re
+    import unicodedata
+
+    normalized = unicodedata.normalize("NFKD", full_name).encode("ascii", "ignore").decode()
+    first = normalized.strip().split()
+    base = (first[0] if first else "user").lower()
+    base = re.sub(r"[^a-z0-9]", "", base) or "user"
+    digits = re.sub(r"[^a-zA-Z0-9]", "", matricula)
+    return f"{base}F{digits}"
