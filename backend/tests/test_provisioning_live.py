@@ -206,6 +206,9 @@ def test_linux_ssh_provision_live_with_mocked_paramiko_success(monkeypatch, live
             return self._text.encode()
 
     class _FakeSSHClient:
+        def load_system_host_keys(self):
+            pass
+
         def set_missing_host_key_policy(self, policy):
             pass
 
