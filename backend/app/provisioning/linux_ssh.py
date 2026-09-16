@@ -58,6 +58,7 @@ class LinuxSSHProvisioner(ProvisioningAdapter):
             return False, f"paramiko não instalado: {exc}"
 
         client = paramiko.SSHClient()
+        client.load_system_host_keys()  # le ~/.ssh/known_hosts (bind mount de SSH_KNOWN_HOSTS_PATH)
         client.set_missing_host_key_policy(paramiko.RejectPolicy())
         # RejectPolicy exige que o host esteja em known_hosts — evita
         # MITM silencioso. A equipe deve popular known_hosts no build
