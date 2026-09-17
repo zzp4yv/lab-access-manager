@@ -234,14 +234,18 @@ def test_next_term_full_cycle_success(monkeypatch, live_mode):
 
 
 class _FakeSessionClient:
-    def __init__(self):
+    def __init__(self, existing_entry_names=None):
         self.puts = []
+        self._existing = existing_entry_names or []
 
     def __enter__(self):
         return self
 
     def __exit__(self, *exc):
         return False
+
+    def get(self, path, *args, **kwargs):
+        return _FakeResponse([{"name": name} for name in self._existing])
 
     def put(self, path, *args, **kwargs):
         self.puts.append((path, kwargs.get("json")))
@@ -262,6 +266,19 @@ def test_next_term_provision_creates_default_entries_via_impersonation(monkeypat
     assert len(fake_session.puts) == 4
     names = {call[1]["name"] for call in fake_session.puts}
     assert names == {"tars ssh", "tars rdp", "case ssh", "case rdp"}
+
+
+def test_next_term_provision_skips_entries_that_already_exist(monkeypatch, live_mode):
+    """Reprovisionamento (retry) não deve duplicar entradas já criadas."""
+    adapter = NextTermProvisioner()
+    monkeypatch.setattr(adapter, "_client", lambda: _FakeHttpxClient(ok=True, external_id="grant-1"))
+    fake_session = _FakeSessionClient(existing_entry_names=["tars ssh", "tars rdp", "case ssh", "case rdp"])
+    monkeypatch.setattr(adapter, "_session_client", lambda token: fake_session)
+
+    result = adapter.provision(_make_user())
+
+    assert result.success is True
+    assert fake_session.puts == []
 
 
 def test_next_term_provision_succeeds_even_if_entry_creation_fails(monkeypatch, live_mode):

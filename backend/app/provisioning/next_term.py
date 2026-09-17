@@ -89,7 +89,9 @@ class NextTermProvisioner(ProvisioningAdapter):
         """Cria as entradas SSH/RDP de tars e case no perfil da conta
         recém-criada, usando um token de sessão dela mesma (ver
         docstring do módulo — a API não permite criar em nome de
-        outra conta pela API key do sistema)."""
+        outra conta pela API key do sistema). Idempotente: pula
+        entradas cujo nome já existe (o orquestrador reprovisiona todos
+        os ambientes a cada retry, mesmo os que já tiveram sucesso)."""
         resp = admin_client.post(f"/users/{account_id}/login")
         resp.raise_for_status()
         session_token = resp.json().get("token")
@@ -97,26 +99,33 @@ class NextTermProvisioner(ProvisioningAdapter):
             return
 
         with self._session_client(session_token) as session_client:
+            existing = session_client.get("/entries/list")
+            existing.raise_for_status()
+            existing_names = {entry.get("name") for entry in existing.json()}
+
             for host in self.settings.LINUX_HOSTS:
                 ip = self._resolve_ip(host)
-                session_client.put(
-                    "/entries",
-                    json={
-                        "type": "server",
-                        "name": f"{host} ssh",
-                        "icon": "mdiConsole",
-                        "config": {"protocol": "ssh", "ip": ip, "port": "22"},
-                    },
-                )
-                session_client.put(
-                    "/entries",
-                    json={
-                        "type": "server",
-                        "name": f"{host} rdp",
-                        "icon": "mdiMicrosoftWindows",
-                        "config": {"protocol": "rdp", "ip": ip, "port": "3389"},
-                    },
-                )
+                ssh_name, rdp_name = f"{host} ssh", f"{host} rdp"
+                if ssh_name not in existing_names:
+                    session_client.put(
+                        "/entries",
+                        json={
+                            "type": "server",
+                            "name": ssh_name,
+                            "icon": "mdiConsole",
+                            "config": {"protocol": "ssh", "ip": ip, "port": "22"},
+                        },
+                    )
+                if rdp_name not in existing_names:
+                    session_client.put(
+                        "/entries",
+                        json={
+                            "type": "server",
+                            "name": rdp_name,
+                            "icon": "mdiMicrosoftWindows",
+                            "config": {"protocol": "rdp", "ip": ip, "port": "3389"},
+                        },
+                    )
 
     def provision(self, user: LabUser) -> ProvisioningResult:
         username = nextterm_username(user.full_name, user.matricula)
