@@ -104,6 +104,19 @@ class Settings:
             "NEXT_TERM_API_URL", "https://nextterm.internal.oxigenio/api"
         )
         self.NEXT_TERM_API_TOKEN: str = os.getenv("NEXT_TERM_API_TOKEN", "")
+        # URL pública (para o visitante acessar pelo navegador) — pode ser
+        # diferente de NEXT_TERM_API_URL, que é o endereço interno usado
+        # pelo backend para chamar a API.
+        self.NEXT_TERM_PUBLIC_URL: str = os.getenv("NEXT_TERM_PUBLIC_URL", "https://term.oxigenio.online")
+
+        # --- E-mail (instruções de acesso enviadas ao visitante) --------------
+        self.SMTP_HOST: str = os.getenv("SMTP_HOST", "")
+        self.SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
+        self.SMTP_USERNAME: str = os.getenv("SMTP_USERNAME", "")
+        self.SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
+        self.SMTP_USE_TLS: bool = os.getenv("SMTP_USE_TLS", "true").lower() == "true"
+        self.SMTP_FROM_EMAIL: str = os.getenv("SMTP_FROM_EMAIL", "")
+        self.SMTP_FROM_NAME: str = os.getenv("SMTP_FROM_NAME", "Laboratório - Instituto Oxigênio")
 
         # --- Modo de operação dos adaptadores de provisionamento --------------
         # "live"  -> executa chamadas reais (SSH/API) contra a infraestrutura.

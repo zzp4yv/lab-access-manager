@@ -270,6 +270,17 @@ textarea { resize: vertical; min-height: 70px; }
 
 .btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
+/* ---------- Modal de edição ---------- */
+.modal-dialog {
+  border: none;
+  border-radius: 10px;
+  padding: 24px;
+  width: min(560px, 92vw);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+}
+.modal-dialog::backdrop { background: rgba(15, 23, 42, 0.45); }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+
 /* ---------- Tabela responsiva ---------- */
 table.data-table {
   width: 100%;

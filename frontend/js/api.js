@@ -89,6 +89,7 @@ const Api = {
   getUser: (id) => apiRequest(`/users/${id}`),
   createUser: (formData) => apiRequest("/users", { method: "POST", body: formData, isForm: true }),
   updateUser: (id, data) => apiRequest(`/users/${id}`, { method: "PATCH", body: data }),
+  deleteUser: (id) => apiRequest(`/users/${id}`, { method: "DELETE" }),
   retryProvisioning: (id) => apiRequest(`/users/${id}/retry-provisioning`, { method: "POST" }),
   revokeNow: (id) => apiRequest(`/users/${id}/revoke-now`, { method: "POST" }),
   runLifecycleNow: () => apiRequest("/users/run-lifecycle-now", { method: "POST" }),

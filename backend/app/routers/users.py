@@ -11,9 +11,10 @@ from app.config import get_settings
 from app.database import get_db
 from app.deps import get_current_admin
 from app.models import Admin, LabUser, UserStatus
-from app.provisioning.orchestrator import provision_user, revoke_user
+from app.provisioning.orchestrator import provision_user, purge_user, revoke_user
 from app.schemas import LabUserOut, LabUserSummary, LabUserUpdate
 from app.services.audit import log_action
+from app.services.email import send_access_instructions
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 settings = get_settings()
@@ -124,6 +125,9 @@ def create_user(
         target_id=user.id,
     )
 
+    if ok:
+        send_access_instructions(user)
+
     return user
 
 
@@ -193,10 +197,14 @@ def retry_provisioning(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado")
 
+    was_active = user.status == UserStatus.ACTIVE
     ok = provision_user(db, user)
     user.status = UserStatus.ACTIVE if ok else UserStatus.FAILED
     db.commit()
     db.refresh(user)
+
+    if ok and not was_active:
+        send_access_instructions(user)
 
     log_action(
         db,
@@ -238,6 +246,34 @@ def revoke_now(
         details={"success": ok},
     )
     return user
+
+
+@router.delete("/{user_id}")
+def delete_user_permanently(
+    user_id: str, db: Session = Depends(get_db), current_admin: Admin = Depends(get_current_admin)
+):
+    """Exclusão definitiva e imediata: purga o usuário em todos os
+    ambientes de provisionamento (sem esperar o prazo de retenção) e
+    remove o registro do banco de dados. Ação irreversível."""
+    user = db.get(LabUser, user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado")
+
+    matricula = user.matricula
+    ok = purge_user(db, user)
+
+    log_action(
+        db,
+        actor=current_admin.email,
+        action="user_deleted_permanently",
+        target_type="lab_user",
+        target_id=user.id,
+        details={"matricula": matricula, "provisioning_purge_ok": ok},
+    )
+
+    db.delete(user)
+    db.commit()
+    return {"success": True, "provisioning_purge_ok": ok}
 
 
 @router.post("/run-lifecycle-now")

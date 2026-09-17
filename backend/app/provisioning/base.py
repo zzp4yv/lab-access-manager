@@ -84,4 +84,6 @@ def nextterm_username(full_name: str, matricula: str) -> str:
     base = (first[0] if first else "user").lower()
     base = re.sub(r"[^a-z0-9]", "", base) or "user"
     digits = re.sub(r"[^a-zA-Z0-9]", "", matricula)
+    if digits[:1].upper() == "F":
+        digits = digits[1:]
     return f"{base}F{digits}"

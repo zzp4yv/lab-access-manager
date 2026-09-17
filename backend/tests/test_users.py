@@ -214,3 +214,34 @@ def test_revoke_now(client, auth_headers):
     body = resp.json()
     assert body["status"] == "revoked"
     assert body["purge_after"] is not None
+
+
+def test_delete_user_permanently_removes_record(client, auth_headers):
+    created = client.post(
+        "/api/users",
+        headers=auth_headers,
+        data={
+            "full_name": "Para Excluir",
+            "matricula": "DEL-01",
+            "personal_email": "excluir@example.com",
+            "phone": "11966665555",
+            "test_description": "Teste de exclusão definitiva",
+            "access_days": "10",
+        },
+    ).json()
+
+    resp = client.delete(f"/api/users/{created['id']}", headers=auth_headers)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["success"] is True
+
+    assert client.get(f"/api/users/{created['id']}", headers=auth_headers).status_code == 404
+
+
+def test_delete_user_requires_auth(client):
+    resp = client.delete("/api/users/algum-id")
+    assert resp.status_code == 401
+
+
+def test_delete_nonexistent_user_returns_404(client, auth_headers):
+    resp = client.delete("/api/users/nao-existe", headers=auth_headers)
+    assert resp.status_code == 404

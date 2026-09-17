@@ -124,6 +124,39 @@
         </div>
       </section>
     </main>
+
+    <dialog id="edit-user-dialog" class="modal-dialog">
+      <form id="edit-user-form" method="dialog">
+        <h2>Editar usuário</h2>
+        <div id="edit-user-alert"></div>
+        <div class="form-grid">
+          <div class="form-field">
+            <label for="edit_full_name">Nome completo *</label>
+            <input type="text" id="edit_full_name" required />
+          </div>
+          <div class="form-field">
+            <label for="edit_personal_email">Email pessoal *</label>
+            <input type="email" id="edit_personal_email" required />
+          </div>
+          <div class="form-field">
+            <label for="edit_phone">Telefone *</label>
+            <input type="tel" id="edit_phone" required />
+          </div>
+          <div class="form-field">
+            <label for="edit_access_days">Tempo de acesso (dias) *</label>
+            <input type="number" id="edit_access_days" min="1" max="365" required />
+          </div>
+          <div class="form-field full-width">
+            <label for="edit_test_description">O que deseja testar no laboratório *</label>
+            <textarea id="edit_test_description" required></textarea>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" id="edit-user-cancel-btn">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="edit-user-save-btn">Salvar alterações</button>
+        </div>
+      </form>
+    </dialog>
   </div>
 
   <script src="/js/api.js"></script>
