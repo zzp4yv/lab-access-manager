@@ -94,6 +94,10 @@ class Settings:
         self.PANGOLIN_API_TOKEN: str = os.getenv("PANGOLIN_API_TOKEN", "")
         self.PANGOLIN_ORG_ID: str = os.getenv("PANGOLIN_ORG_ID", "")
         self.PANGOLIN_SITE_ID: str = os.getenv("PANGOLIN_SITE_ID", "")
+        # Nome da role (Pangolin > Org > Roles) atribuída a visitantes do
+        # laboratório — deve existir previamente na org e ter permissões
+        # restritas (sem admin).
+        self.PANGOLIN_ROLE_NAME: str = os.getenv("PANGOLIN_ROLE_NAME", "Member")
 
         # Next Term (shell + RDP)
         self.NEXT_TERM_API_URL: str = os.getenv(

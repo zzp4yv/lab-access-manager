@@ -94,24 +94,115 @@ def live_mode(monkeypatch):
     get_settings.cache_clear()
 
 
+class _FakePangolinClient:
+    """Simula a Integration API do Pangolin: rotas de roles, users e
+    invitations, com estado configurável por teste."""
+
+    def __init__(self, *, ok=True, roles=None, users=None, invitations=None, invite_link="https://pangolin/invite/abc"):
+        self._ok = ok
+        self._roles = roles if roles is not None else [{"roleId": 2, "name": "Member"}]
+        self._users = users if users is not None else []
+        self._invitations = invitations if invitations is not None else []
+        self._invite_link = invite_link
+        self.deleted_paths = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def _check_ok(self):
+        if not self._ok:
+            raise RuntimeError("Falha de conexão simulada")
+
+    def get(self, path, *args, **kwargs):
+        self._check_ok()
+        if path.endswith("/roles"):
+            return _FakeResponse({"data": {"roles": self._roles}})
+        if path.endswith("/invitations"):
+            return _FakeResponse({"data": {"invitations": self._invitations}})
+        if path.endswith("/users"):
+            return _FakeResponse({"data": {"users": self._users}})
+        raise AssertionError(f"GET inesperado: {path}")
+
+    def post(self, path, *args, **kwargs):
+        self._check_ok()
+        if path.endswith("/create-invite"):
+            return _FakeResponse({"data": {"inviteLink": self._invite_link}})
+        raise AssertionError(f"POST inesperado: {path}")
+
+    def delete(self, path, *args, **kwargs):
+        self._check_ok()
+        self.deleted_paths.append(path)
+        return _FakeResponse({})
+
+
 def test_pangolin_provision_success(monkeypatch, live_mode):
     adapter = PangolinProvisioner()
-    monkeypatch.setattr(adapter, "_client", lambda: _FakeHttpxClient(ok=True, external_id="peer-1"))
+    fake = _FakePangolinClient()
+    monkeypatch.setattr(adapter, "_client", lambda: fake)
 
     result = adapter.provision(_make_user())
 
     assert result.success is True
-    assert result.external_identifier == "peer-1"
+    assert result.external_identifier == "grace@example.com"
+    assert fake._invite_link in result.message
+
+
+def test_pangolin_provision_role_not_found(monkeypatch, live_mode):
+    adapter = PangolinProvisioner()
+    monkeypatch.setattr(adapter, "_client", lambda: _FakePangolinClient(roles=[{"roleId": 1, "name": "Admin"}]))
+
+    result = adapter.provision(_make_user())
+
+    assert result.success is False
+    assert "Member" in result.message
 
 
 def test_pangolin_provision_failure_is_captured(monkeypatch, live_mode):
     adapter = PangolinProvisioner()
-    monkeypatch.setattr(adapter, "_client", lambda: _FakeHttpxClient(ok=False))
+    monkeypatch.setattr(adapter, "_client", lambda: _FakePangolinClient(ok=False))
 
     result = adapter.provision(_make_user())
 
     assert result.success is False
     assert "simulada" in result.message
+
+
+def test_pangolin_revoke_removes_roles_from_existing_member(monkeypatch, live_mode):
+    adapter = PangolinProvisioner()
+    fake = _FakePangolinClient(
+        users=[{"id": "u1", "email": "grace@example.com", "roles": [{"roleId": 2, "roleName": "Member"}]}]
+    )
+    monkeypatch.setattr(adapter, "_client", lambda: fake)
+
+    result = adapter.revoke(_make_user(), "grace@example.com")
+
+    assert result.success is True
+    assert fake.deleted_paths == ["/user/u1/remove-role/2"]
+
+
+def test_pangolin_revoke_cancels_pending_invite(monkeypatch, live_mode):
+    adapter = PangolinProvisioner()
+    fake = _FakePangolinClient(invitations=[{"inviteId": "inv1", "email": "grace@example.com"}])
+    monkeypatch.setattr(adapter, "_client", lambda: fake)
+
+    result = adapter.revoke(_make_user(), "grace@example.com")
+
+    assert result.success is True
+    assert any(p.endswith("/invitations/inv1") for p in fake.deleted_paths)
+
+
+def test_pangolin_purge_removes_org_member(monkeypatch, live_mode):
+    adapter = PangolinProvisioner()
+    fake = _FakePangolinClient(users=[{"id": "u1", "email": "grace@example.com", "roles": []}])
+    monkeypatch.setattr(adapter, "_client", lambda: fake)
+
+    result = adapter.purge(_make_user(), "grace@example.com")
+
+    assert result.success is True
+    assert any(p.endswith("/user/u1") for p in fake.deleted_paths)
 
 
 def test_pangolin_revoke_and_purge_without_identifier_are_noop(live_mode):
