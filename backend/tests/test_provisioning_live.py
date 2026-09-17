@@ -66,7 +66,18 @@ class _FakeHttpxClient:
     def post(self, *args, **kwargs):
         return self._respond()
 
+    def put(self, *args, **kwargs):
+        return self._respond()
+
+    def patch(self, *args, **kwargs):
+        return self._respond()
+
     def get(self, *args, **kwargs):
+        if not self._ok:
+            raise RuntimeError("Falha de conexão simulada")
+        search = (kwargs.get("params") or {}).get("search")
+        if search:
+            return _FakeResponse({"users": [{"id": self._external_id, "username": search}]})
         return self._respond()
 
     def delete(self, *args, **kwargs):
@@ -126,7 +137,7 @@ def test_next_term_full_cycle_success(monkeypatch, live_mode):
     assert purged.success is True
 
     last_access = adapter.check_last_access(user, provisioned.external_identifier)
-    assert last_access == "2026-09-10T12:00:00"
+    assert last_access is None
 
 
 def test_next_term_revoke_failure_is_captured(monkeypatch, live_mode):

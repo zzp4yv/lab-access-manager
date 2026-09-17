@@ -1,14 +1,25 @@
-"""Adaptador de provisionamento para o Next Term (acesso via shell e RDP
-liberado por túnel/proxy).
+"""Adaptador de provisionamento para o Nexterm (github.com/gnmyt/Nexterm),
+usado para conceder acesso via shell (SSH) e RDP.
 
-Assume-se uma API REST simples do Next Term para conceder/revogar
-sessões de um usuário a um "target" (host) com um determinado protocolo
-(`ssh` e/ou `rdp`). Ajustar os endpoints/payloads conforme a versão
-real instalada (ver `.env.example` para configuração de URL/token).
+API real confirmada em produção (ver docs.nexterm.dev/api-reference):
+  - Base: NEXT_TERM_API_URL + "/api" (ex.: http://192.168.10.28:6989/api)
+  - Auth: header "Authorization: Bearer <token>" (token com prefixo "nxt_")
+  - PUT  /users              cria conta (campos obrigatórios: username,
+    password, firstName, lastName) — não aceita e-mail nem protocolo,
+    o acesso SSH/RDP é definido depois pelo próprio usuário/via grupo.
+  - GET  /users/list?search= busca por username (não há endpoint por
+    username direto; local izamos o accountId numérico assim antes de
+    revogar/purgar).
+  - DELETE /users/{accountId}         remove a conta definitivamente.
+  - Não existe endpoint de "desativar sem apagar": a revogação é feita
+    trocando a senha para um valor aleatório que não é comunicado a
+    ninguém, efetivamente bloqueando novos logins sem apagar a conta
+    (os dados/sessões residuais somem só na purga).
 """
 from __future__ import annotations
 
 import logging
+import secrets
 
 from app.config import get_settings
 from app.models import LabUser, ProvisioningEnvironment
@@ -27,7 +38,7 @@ class NextTermProvisioner(ProvisioningAdapter):
         import httpx
 
         return httpx.Client(
-            base_url=self.settings.NEXT_TERM_API_URL,
+            base_url=f"{self.settings.NEXT_TERM_API_URL.rstrip('/')}/api",
             headers={
                 "Authorization": f"Bearer {self.settings.NEXT_TERM_API_TOKEN}",
                 "Content-Type": "application/json",
@@ -35,28 +46,40 @@ class NextTermProvisioner(ProvisioningAdapter):
             timeout=15.0,
         )
 
+    def _find_account_id(self, client, username: str) -> int | None:
+        resp = client.get("/users/list", params={"search": username})
+        resp.raise_for_status()
+        for account in resp.json().get("users", []):
+            if account.get("username") == username:
+                return account.get("id")
+        return None
+
     def provision(self, user: LabUser) -> ProvisioningResult:
         username = nextterm_username(user.full_name, user.matricula)
+        first_name, _, last_name = user.full_name.strip().partition(" ")
+        password = secrets.token_urlsafe(12)
         payload = {
             "username": username,
-            "displayName": user.full_name,
-            "email": user.personal_email,
-            "protocols": ["shell", "rdp"],
-            "expiresAt": user.expires_at.isoformat(),
-            "tags": ["lab-access-manager", user.matricula],
+            "password": password,
+            "firstName": first_name or username,
+            "lastName": last_name or "-",
         }
 
         if self.settings.PROVISIONING_MODE != "live":
-            logger.info("[DRY-RUN][next_term] criaria acesso shell+RDP: %s", payload)
+            logger.info("[DRY-RUN][next_term] criaria conta: %s", {**payload, "password": "***"})
             return ProvisioningResult(success=True, external_identifier=username, message="dry-run")
 
         try:
             with self._client() as client:
-                resp = client.post("/v1/access-grants", json=payload)
+                resp = client.put("/users", json=payload)
                 resp.raise_for_status()
-                data = resp.json()
                 return ProvisioningResult(
-                    success=True, external_identifier=data.get("id", username), message="criado"
+                    success=True,
+                    external_identifier=username,
+                    message=(
+                        f"criado — usuário: {username} / senha inicial: {password} "
+                        "(comunicar ao visitante por canal seguro; não é mostrada de novo)"
+                    ),
                 )
         except Exception as exc:  # noqa: BLE001
             return ProvisioningResult(success=False, message=str(exc))
@@ -71,7 +94,14 @@ class NextTermProvisioner(ProvisioningAdapter):
 
         try:
             with self._client() as client:
-                resp = client.post(f"/v1/access-grants/{external_identifier}/revoke")
+                account_id = self._find_account_id(client, external_identifier)
+                if account_id is None:
+                    return ProvisioningResult(
+                        success=True, external_identifier=external_identifier, message="conta já não existe"
+                    )
+                resp = client.patch(
+                    f"/users/{account_id}/password", json={"password": secrets.token_urlsafe(24)}
+                )
                 resp.raise_for_status()
                 return ProvisioningResult(success=True, external_identifier=external_identifier, message="revogado")
         except Exception as exc:  # noqa: BLE001
@@ -82,28 +112,23 @@ class NextTermProvisioner(ProvisioningAdapter):
             return ProvisioningResult(success=True, message="nada a purgar")
 
         if self.settings.PROVISIONING_MODE != "live":
-            logger.info("[DRY-RUN][next_term] removeria acesso %s definitivamente", external_identifier)
+            logger.info("[DRY-RUN][next_term] removeria conta %s definitivamente", external_identifier)
             return ProvisioningResult(success=True, external_identifier=external_identifier, message="dry-run")
 
         try:
             with self._client() as client:
-                resp = client.delete(f"/v1/access-grants/{external_identifier}")
+                account_id = self._find_account_id(client, external_identifier)
+                if account_id is None:
+                    return ProvisioningResult(
+                        success=True, external_identifier=external_identifier, message="conta já não existia"
+                    )
+                resp = client.delete(f"/users/{account_id}")
                 resp.raise_for_status()
                 return ProvisioningResult(success=True, external_identifier=external_identifier, message="removido")
         except Exception as exc:  # noqa: BLE001
             return ProvisioningResult(success=False, message=str(exc))
 
     def check_last_access(self, user: LabUser, external_identifier: str | None) -> str | None:
-        """Consulta o último login registrado pelo Next Term para este
-        usuário — usado pelo job de sincronização para popular
-        `last_access_at` no dashboard."""
-        if not external_identifier or self.settings.PROVISIONING_MODE != "live":
-            return None
-        try:
-            with self._client() as client:
-                resp = client.get(f"/v1/access-grants/{external_identifier}/sessions/last")
-                resp.raise_for_status()
-                data = resp.json()
-                return data.get("occurredAt")
-        except Exception:  # noqa: BLE001
-            return None
+        """Não há um endpoint confirmado de "último login por usuário" na
+        API do Nexterm — deixado como no-op até validarmos isso."""
+        return None
