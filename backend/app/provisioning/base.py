@@ -73,9 +73,15 @@ def slugify_username(full_name: str, matricula: str) -> str:
     return f"lab-{base}-{suffix}"
 
 
+NEXTTERM_USERNAME_MAX_LENGTH = 15  # limite real da API do Nexterm
+
+
 def nextterm_username(full_name: str, matricula: str) -> str:
     """Gera o username do Next Term: primeiro nome + "F" + matrícula
-    completa (sem truncar), ex.: "Rogério" + "0135019" -> "rogerioF0135019"."""
+    completa, ex.: "Rogério" + "0135019" -> "rogerioF0135019". O Nexterm
+    limita o username a 15 caracteres — a matrícula (identificador
+    único) nunca é truncada; o nome é encurtado o quanto for preciso
+    para caber."""
     import re
     import unicodedata
 
@@ -86,4 +92,7 @@ def nextterm_username(full_name: str, matricula: str) -> str:
     digits = re.sub(r"[^a-zA-Z0-9]", "", matricula)
     if digits[:1].upper() == "F":
         digits = digits[1:]
+
+    max_base_len = max(1, NEXTTERM_USERNAME_MAX_LENGTH - 1 - len(digits))
+    base = base[:max_base_len]
     return f"{base}F{digits}"
