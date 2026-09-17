@@ -80,7 +80,18 @@ jobs:
       # executa localmente, sem precisar de SSH nem de segredos de
       # conexão. O `docker-compose.yml` de produção e o `.env` com as
       # variáveis reais (Pangolin, Next Term etc.) já vivem em
-      # DEPLOY_PATH no host.
+      # DEPLOY_PATH no host. O .env com os segredos reais também já
+      # vive lá e não é tocado por este job — só o docker-compose.yml
+      # é sincronizado a partir do repositório a cada deploy (evita o
+      # arquivo em produção ficar desatualizado em relação ao
+      # docker-compose.prod.yml versionado — já causou um incidente
+      # real, ver docs/INFRASTRUCTURE.md).
+      - name: Checkout do código (para sincronizar o docker-compose.yml)
+        uses: actions/checkout@v4
+
+      - name: Sincronizar docker-compose.yml de produção
+        run: cp docker-compose.prod.yml "$DEPLOY_PATH/docker-compose.yml"
+
       - name: Login no GitHub Container Registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
