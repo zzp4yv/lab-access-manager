@@ -104,6 +104,10 @@ class PangolinProvisioner(ProvisioningAdapter):
                         "roleId": role_id,
                         "validHours": 168,
                         "sendEmail": False,
+                        # Idempotente: se já existir um convite pendente para
+                        # este e-mail (ex.: retry de provisionamento), o
+                        # Pangolin regenera o link em vez de retornar 409.
+                        "regenerate": True,
                     },
                 )
                 resp.raise_for_status()
