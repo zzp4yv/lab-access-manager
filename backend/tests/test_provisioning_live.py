@@ -61,7 +61,9 @@ class _FakeHttpxClient:
     def _respond(self):
         if not self._ok:
             raise RuntimeError("Falha de conexão simulada")
-        return _FakeResponse({"id": self._external_id, "occurredAt": "2026-09-10T12:00:00"})
+        return _FakeResponse(
+            {"id": self._external_id, "occurredAt": "2026-09-10T12:00:00", "token": "sess-tok-123"}
+        )
 
     def post(self, *args, **kwargs):
         return self._respond()
@@ -229,6 +231,52 @@ def test_next_term_full_cycle_success(monkeypatch, live_mode):
 
     last_access = adapter.check_last_access(user, provisioned.external_identifier)
     assert last_access is None
+
+
+class _FakeSessionClient:
+    def __init__(self):
+        self.puts = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def put(self, path, *args, **kwargs):
+        self.puts.append((path, kwargs.get("json")))
+        return _FakeResponse({"id": 1})
+
+
+def test_next_term_provision_creates_default_entries_via_impersonation(monkeypatch, live_mode):
+    adapter = NextTermProvisioner()
+    monkeypatch.setattr(adapter, "_client", lambda: _FakeHttpxClient(ok=True, external_id="grant-1"))
+    fake_session = _FakeSessionClient()
+    monkeypatch.setattr(adapter, "_session_client", lambda token: fake_session)
+
+    result = adapter.provision(_make_user())
+
+    assert result.success is True
+    assert "não puderam ser criadas" not in result.message
+    # 2 hosts (tars, case) x 2 protocolos (ssh, rdp) = 4 entradas
+    assert len(fake_session.puts) == 4
+    names = {call[1]["name"] for call in fake_session.puts}
+    assert names == {"tars ssh", "tars rdp", "case ssh", "case rdp"}
+
+
+def test_next_term_provision_succeeds_even_if_entry_creation_fails(monkeypatch, live_mode):
+    adapter = NextTermProvisioner()
+    monkeypatch.setattr(adapter, "_client", lambda: _FakeHttpxClient(ok=True, external_id="grant-1"))
+
+    def _boom(account_id):
+        raise RuntimeError("Nexterm indisponível")
+
+    monkeypatch.setattr(adapter, "_create_default_entries", lambda client, account_id: _boom(account_id))
+
+    result = adapter.provision(_make_user())
+
+    assert result.success is True
+    assert "não puderam ser criadas" in result.message
 
 
 def test_next_term_revoke_failure_is_captured(monkeypatch, live_mode):

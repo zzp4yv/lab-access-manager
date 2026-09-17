@@ -15,11 +15,27 @@ API real confirmada em produção (ver docs.nexterm.dev/api-reference):
     trocando a senha para um valor aleatório que não é comunicado a
     ninguém, efetivamente bloqueando novos logins sem apagar a conta
     (os dados/sessões residuais somem só na purga).
+
+Máquinas pré-configuradas no perfil (SSH/RDP para tars e case):
+  - Entradas ("entries") e credenciais ("identities") são estritamente
+    pessoais — vinculadas à conta que as cria, sem qualquer campo para
+    criar "em nome de" outra conta (a API rejeita com "accountId is
+    not allowed"). Não existe organização configurada nessa instância
+    para compartilhar entradas entre contas.
+  - Contorno: POST /users/{accountId}/login ("impersonate", exige a
+    permissão "users.impersonate" na API key) devolve um token de
+    sessão da própria conta criada; usando esse token (em vez da API
+    key do sistema) para criar as entradas, elas passam a pertencer de
+    fato à nova conta — confirmado manualmente antes de implementar.
+  - As entradas não recebem identidade/credencial (senha de SSH/RDP)
+    — o mesmo padrão já usado no perfil de referência (zzp4yv), onde
+    "TARS ssh" também não tem identidade associada.
 """
 from __future__ import annotations
 
 import logging
 import secrets
+import socket
 
 from app.config import get_settings
 from app.models import LabUser, ProvisioningEnvironment
@@ -54,6 +70,54 @@ class NextTermProvisioner(ProvisioningAdapter):
                 return account.get("id")
         return None
 
+    def _resolve_ip(self, hostname: str) -> str:
+        try:
+            return socket.gethostbyname(hostname)
+        except OSError:
+            return hostname
+
+    def _session_client(self, session_token: str):
+        import httpx
+
+        return httpx.Client(
+            base_url=f"{self.settings.NEXT_TERM_API_URL.rstrip('/')}/api",
+            headers={"Authorization": f"Bearer {session_token}", "Content-Type": "application/json"},
+            timeout=15.0,
+        )
+
+    def _create_default_entries(self, admin_client, account_id: int) -> None:
+        """Cria as entradas SSH/RDP de tars e case no perfil da conta
+        recém-criada, usando um token de sessão dela mesma (ver
+        docstring do módulo — a API não permite criar em nome de
+        outra conta pela API key do sistema)."""
+        resp = admin_client.post(f"/users/{account_id}/login")
+        resp.raise_for_status()
+        session_token = resp.json().get("token")
+        if not session_token:
+            return
+
+        with self._session_client(session_token) as session_client:
+            for host in self.settings.LINUX_HOSTS:
+                ip = self._resolve_ip(host)
+                session_client.put(
+                    "/entries",
+                    json={
+                        "type": "server",
+                        "name": f"{host} ssh",
+                        "icon": "mdiConsole",
+                        "config": {"protocol": "ssh", "ip": ip, "port": "22"},
+                    },
+                )
+                session_client.put(
+                    "/entries",
+                    json={
+                        "type": "server",
+                        "name": f"{host} rdp",
+                        "icon": "mdiMicrosoftWindows",
+                        "config": {"protocol": "rdp", "ip": ip, "port": "3389"},
+                    },
+                )
+
     def provision(self, user: LabUser) -> ProvisioningResult:
         username = nextterm_username(user.full_name, user.matricula)
         first_name, _, last_name = user.full_name.strip().partition(" ")
@@ -73,12 +137,22 @@ class NextTermProvisioner(ProvisioningAdapter):
             with self._client() as client:
                 resp = client.put("/users", json=payload)
                 resp.raise_for_status()
+
+                entries_note = ""
+                account_id = self._find_account_id(client, username)
+                if account_id is not None:
+                    try:
+                        self._create_default_entries(client, account_id)
+                    except Exception:  # noqa: BLE001
+                        logger.exception("[next_term] falha ao criar entradas padrão para %s", username)
+                        entries_note = " (máquinas padrão não puderam ser criadas automaticamente)"
+
                 return ProvisioningResult(
                     success=True,
                     external_identifier=username,
                     message=(
                         f"criado — usuário: {username} / senha inicial: {password} "
-                        "(comunicar ao visitante por canal seguro; não é mostrada de novo)"
+                        "(comunicar ao visitante por canal seguro; não é mostrada de novo)" + entries_note
                     ),
                 )
         except Exception as exc:  # noqa: BLE001
