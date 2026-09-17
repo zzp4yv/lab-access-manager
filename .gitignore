@@ -18,3 +18,5 @@ secrets/
 
 .DS_Store
 node_modules/
+backend/validation_report_coverage.json
+backend/validation_report_junit.xml
