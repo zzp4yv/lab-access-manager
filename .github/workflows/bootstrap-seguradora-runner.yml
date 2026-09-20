@@ -38,8 +38,12 @@ jobs:
           if sudo -n true 2>/dev/null; then
             sudo ./svc.sh install "$(whoami)" && sudo ./svc.sh start
           else
-            nohup ./run.sh >> run.log 2>&1 &
-            echo "sem sudo: runner iniciado em background (pid $!), usar: $(pwd)/run.log"
+            # sem sudo: desacopla o listener do processo do job (setsid +
+            # double-fork) para o runner sobreviver ao cleanup de órfãos.
+            setsid env HOME="$HOME" "$DIR/run.sh" >> run.log 2>&1 </dev/null &
+            disown || true
+            sleep 5
+            echo "sem sudo: runner iniciado em background desacoplado; log: $(pwd)/run.log"
           fi
           sleep 5
           ls -la "$DIR" | head -15
