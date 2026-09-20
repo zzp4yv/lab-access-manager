@@ -1,0 +1,45 @@
+name: Bootstrap runner dockeroxi (seguradora-app)
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  bootstrap:
+    # roda no runner da dockeroxi (o único canal de execução na máquina) e
+    # registra um runner dedicado para zzp4yv/seguradora-app na mesma máquina.
+    runs-on: [self-hosted, dockeroxi]
+    timeout-minutes: 20
+    steps:
+      - name: Registra e inicia o runner do seguradora-app
+        shell: bash
+        env:
+          TOKEN: ${{ secrets.SEGURADORA_RUNNER_TOKEN }}
+          REPO: zzp4yv/seguradora-app
+        run: |
+          set -euo pipefail
+          DIR="$HOME/actions-runner-seguradora"
+          mkdir -p "$DIR"
+          if [ ! -x "$DIR/run.sh" ]; then
+            VER=$(curl -fsSL https://api.github.com/repos/actions/runner/releases/latest \
+              | sed -n 's/.*"tag_name": "\([^"]*\)".*/\1/p')
+            ARCH="linux-x64"
+            curl -fsSL -o /tmp/runner.tar.gz \
+              "https://github.com/actions/runner/releases/download/${VER}/actions-runner-${ARCH}-${VER#v}.tar.gz"
+            tar -xz -C "$DIR" -f /tmp/runner.tar.gz
+            rm -f /tmp/runner.tar.gz
+          fi
+          if [ ! -f "$DIR/.runner" ]; then
+            "$DIR/config.sh" --url "https://github.com/${REPO}" --token "$TOKEN" \
+              --name dockeroxi-seguradora \
+              --labels self-hosted,linux,x64,dockeroxi \
+              --work work --unattended --replace
+          fi
+          cd "$DIR"
+          if sudo -n true 2>/dev/null; then
+            sudo ./svc.sh install "$(whoami)" && sudo ./svc.sh start
+          else
+            nohup ./run.sh >> run.log 2>&1 &
+            echo "sem sudo: runner iniciado em background (pid $!), usar: $(pwd)/run.log"
+          fi
+          sleep 5
+          ls -la "$DIR" | head -15
