@@ -25,8 +25,8 @@ def _make_user_with_records() -> LabUser:
         ProvisioningRecord(
             environment=ProvisioningEnvironment.NEXT_TERM,
             status=ProvisioningStatus.SUCCESS,
-            external_identifier="graceF0001",
-            last_message="criado — usuário: graceF0001 / senha inicial: AbC123XyZ (comunicar por canal seguro)",
+            external_identifier="F0001",
+            last_message="criado — usuário: F0001 / senha inicial: grace2026 (comunicar por canal seguro)",
         ),
         ProvisioningRecord(
             environment=ProvisioningEnvironment.PANGOLIN_VPN,
@@ -37,13 +37,13 @@ def _make_user_with_records() -> LabUser:
         ProvisioningRecord(
             environment=ProvisioningEnvironment.LINUX_TARS,
             status=ProvisioningStatus.SUCCESS,
-            external_identifier="lab-grace-f0001",
+            external_identifier="F0001",
             last_message="ok",
         ),
         ProvisioningRecord(
             environment=ProvisioningEnvironment.LINUX_CASE,
             status=ProvisioningStatus.SUCCESS,
-            external_identifier="lab-grace-f0001",
+            external_identifier="F0001",
             last_message="ok",
         ),
     ]
@@ -53,10 +53,9 @@ def _make_user_with_records() -> LabUser:
 def test_build_body_includes_nexterm_credentials_and_pangolin_link():
     body = _build_body(_make_user_with_records())
 
-    assert "graceF0001" in body
-    assert "AbC123XyZ" in body
+    assert "F0001" in body  # username = matricula
+    assert "grace2026" in body  # password = first_name_lowercase + year
     assert "https://pangolin.oxigenio.online/invite?token=abc" in body
-    assert "lab-grace-f0001" in body
 
 
 def test_send_access_instructions_skips_when_smtp_not_configured(monkeypatch):

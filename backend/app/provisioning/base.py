@@ -59,40 +59,13 @@ class ProvisioningAdapter(ABC):
 
 
 def slugify_username(full_name: str, matricula: str) -> str:
-    """Gera um nome de usuário de sistema previsível e seguro a partir do
-    nome completo e da matrícula (evita colisões e caracteres inválidos
-    em `useradd`)."""
-    import re
-    import unicodedata
-
-    normalized = unicodedata.normalize("NFKD", full_name).encode("ascii", "ignore").decode()
-    first_last = normalized.strip().split()
-    base = (first_last[0] if first_last else "user").lower()
-    base = re.sub(r"[^a-z0-9]", "", base)[:12] or "user"
-    suffix = re.sub(r"[^a-zA-Z0-9]", "", matricula)[-6:].lower()
-    return f"lab-{base}-{suffix}"
+    """Gera um nome de usuário a partir da matrícula exclusivamente."""
+    return matricula
 
 
 NEXTTERM_USERNAME_MAX_LENGTH = 15  # limite real da API do Nexterm
 
 
 def nextterm_username(full_name: str, matricula: str) -> str:
-    """Gera o username do Next Term: primeiro nome + "F" + matrícula
-    completa, ex.: "Rogério" + "0135019" -> "rogerioF0135019". O Nexterm
-    limita o username a 15 caracteres — a matrícula (identificador
-    único) nunca é truncada; o nome é encurtado o quanto for preciso
-    para caber."""
-    import re
-    import unicodedata
-
-    normalized = unicodedata.normalize("NFKD", full_name).encode("ascii", "ignore").decode()
-    first = normalized.strip().split()
-    base = (first[0] if first else "user").lower()
-    base = re.sub(r"[^a-z0-9]", "", base) or "user"
-    digits = re.sub(r"[^a-zA-Z0-9]", "", matricula)
-    if digits[:1].upper() == "F":
-        digits = digits[1:]
-
-    max_base_len = max(1, NEXTTERM_USERNAME_MAX_LENGTH - 1 - len(digits))
-    base = base[:max_base_len]
-    return f"{base}F{digits}"
+    """Gera o username do Next Term a partir da matrícula exclusivamente."""
+    return matricula

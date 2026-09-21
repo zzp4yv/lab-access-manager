@@ -2,7 +2,7 @@
 logo após o provisionamento ser concluído com sucesso (ver
 `routers/users.py`).
 
-Usa SMTP simples (smtplib), sem dependência de um provedor específico
+Usa SMTP simples (smtplib), sem dependência de um provedor especfico
 — funciona com qualquer servidor SMTP padrão (Gmail com senha de app,
 SES, Mailgun, etc.), configurado via `SMTP_*` no `.env`. Se
 `SMTP_HOST` não estiver configurado, o envio é pulado (logado como
@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 import re
 import smtplib
+from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -29,6 +30,10 @@ _INVITE_LINK_RE = re.compile(r"(https?://\S+)")
 def _build_body(user: LabUser) -> str:
     settings = get_settings()
     records = {r.environment: r for r in user.provisioning_records}
+
+    first_name = user.full_name.split()[0] if user.full_name.split() else "usuario"
+    password = f"{first_name.lower()}{datetime.now().year}"
+
     lines = [
         f"Olá, {user.full_name}!",
         "",
@@ -39,14 +44,12 @@ def _build_body(user: LabUser) -> str:
 
     next_term = records.get(ProvisioningEnvironment.NEXT_TERM)
     if next_term and next_term.status == ProvisioningStatus.SUCCESS:
-        password_match = _PASSWORD_RE.search(next_term.last_message or "")
         lines += [
             "== Acesso shell/RDP (Nexterm) ==",
             f"URL: {settings.NEXT_TERM_PUBLIC_URL}",
             f"Usuário: {next_term.external_identifier}",
+            f"Senha: {password}",
         ]
-        if password_match:
-            lines.append(f"Senha: {password_match.group(1)}")
         lines.append("")
 
     pangolin = records.get(ProvisioningEnvironment.PANGOLIN_VPN)
@@ -90,11 +93,22 @@ def send_access_instructions(user: LabUser) -> bool:
         logger.info("[email] SMTP não configurado — pulando envio para %s", user.personal_email)
         return True
 
+    first_name = user.full_name.split()[0] if user.full_name.split() else "usuario"
+    password = f"{first_name.lower()}{datetime.now().year}"
+
     message = MIMEMultipart()
-    message["From"] = f"{settings.SMTP_FROM_NAME} <{settings.SMTP_FROM_EMAIL or settings.SMTP_USERNAME}>"
+    message["From"] = "acessolab@starlab.ia.br"
     message["To"] = user.personal_email
     message["Subject"] = "Acesso ao laboratório — Instituto Oxigênio"
-    message.attach(MIMEText(_build_body(user), "plain", "utf-8"))
+    body = _build_body(user)
+    # Substituir a senha na body pelo password calculado (já está em _build_body,
+    # mas garantimos o valor correto se houver qualquer discrepância)
+    body = re.sub(
+        r"Senha: [^\n]+",
+        f"Senha: {password}",
+        body,
+    )
+    message.attach(MIMEText(body, "plain", "utf-8"))
 
     try:
         with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=15) as server:

@@ -24,7 +24,7 @@ import logging
 
 from app.config import get_settings
 from app.models import LabUser, ProvisioningEnvironment
-from app.provisioning.base import ProvisioningAdapter, ProvisioningResult, slugify_username
+from app.provisioning.base import ProvisioningAdapter, ProvisioningResult
 
 logger = logging.getLogger("provisioning.linux_ssh")
 
@@ -85,7 +85,7 @@ class LinuxSSHProvisioner(ProvisioningAdapter):
 
     # ------------------------------------------------------------------
     def provision(self, user: LabUser) -> ProvisioningResult:
-        username = slugify_username(user.full_name, user.matricula)
+        username = user.matricula
         cmd = (
             f"sudo {REMOTE_SCRIPTS_DIR}/linux_create_user.sh "
             f"--username {username} "

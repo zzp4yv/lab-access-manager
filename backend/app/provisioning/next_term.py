@@ -36,10 +36,11 @@ from __future__ import annotations
 import logging
 import secrets
 import socket
+from datetime import datetime
 
 from app.config import get_settings
 from app.models import LabUser, ProvisioningEnvironment
-from app.provisioning.base import ProvisioningAdapter, ProvisioningResult, nextterm_username
+from app.provisioning.base import ProvisioningAdapter, ProvisioningResult
 
 logger = logging.getLogger("provisioning.next_term")
 
@@ -128,9 +129,10 @@ class NextTermProvisioner(ProvisioningAdapter):
                     )
 
     def provision(self, user: LabUser) -> ProvisioningResult:
-        username = nextterm_username(user.full_name, user.matricula)
+        username = user.matricula
         first_name, _, last_name = user.full_name.strip().partition(" ")
-        password = secrets.token_urlsafe(12)
+        # Senha determinística: primeiro nome em minúsculo + ano atual (4 dígitos)
+        password = f"{first_name.lower()}{datetime.now().year}"
         payload = {
             "username": username,
             "password": password,
