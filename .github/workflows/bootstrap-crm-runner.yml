@@ -1,0 +1,46 @@
+name: Bootstrap runner dockeroxi (crm-seguros)
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  bootstrap:
+    # roda no runner da dockeroxi (único canal de execução na máquina) e
+    # registra um runner dedicado para zzp4yv/crm-seguros na mesma máquina.
+    runs-on: [self-hosted, dockeroxi]
+    timeout-minutes: 20
+    steps:
+      - name: Registra e inicia o runner do crm-seguros
+        shell: bash
+        env:
+          TOKEN: ${{ secrets.CRM_RUNNER_TOKEN }}
+          REPO: zzp4yv/crm-seguros
+        run: |
+          set -euo pipefail
+          DIR="$HOME/actions-runner-crm-seguros"
+          mkdir -p "$DIR"
+          if [ ! -x "$DIR/run.sh" ]; then
+            VER=$(curl -fsSL https://api.github.com/repos/actions/runner/releases/latest \
+              | sed -n 's/.*"tag_name": "\([^"]*\)".*/\1/p')
+            curl -fsSL -o /tmp/runner-crm.tar.gz \
+              "https://github.com/actions/runner/releases/download/${VER}/actions-runner-linux-x64-${VER#v}.tar.gz"
+            tar -xz -C "$DIR" -f /tmp/runner-crm.tar.gz
+            rm -f /tmp/runner-crm.tar.gz
+          fi
+          if [ ! -f "$DIR/.runner" ]; then
+            "$DIR/config.sh" --url "https://github.com/${REPO}" --token "$TOKEN" \
+              --name dockeroxi-crm-seguros \
+              --labels self-hosted,linux,x64,dockeroxi \
+              --work work --unattended --replace
+          fi
+          cd "$DIR"
+          if sudo -n true 2>/dev/null; then
+            sudo ./svc.sh install "$(whoami)" && sudo ./svc.sh start
+          else
+            setsid env HOME="$HOME" "$DIR/run.sh" >> run.log 2>&1 </dev/null &
+            disown || true
+            sleep 5
+            echo "sem sudo: registrar + iniciar listener desacoplado (morre no fim do job);".
+            echo "para persistir: cd $DIR && sudo ./svc.sh install ghrunner && sudo ./svc.sh start"
+          fi
+          ls -la "$DIR" | head -15
