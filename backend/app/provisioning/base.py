@@ -59,13 +59,13 @@ class ProvisioningAdapter(ABC):
 
 
 def slugify_username(full_name: str, matricula: str) -> str:
-    """Gera um nome de usuário a partir da matrícula exclusivamente."""
-    return matricula
+    """Gera um nome de usuário a partir da matrícula exclusivamente (minúscula para compatibilidade Linux)."""
+    return matricula.lower()
 
 
 NEXTTERM_USERNAME_MAX_LENGTH = 15  # limite real da API do Nexterm
 
 
 def nextterm_username(full_name: str, matricula: str) -> str:
-    """Gera o username do Next Term a partir da matrícula exclusivamente."""
-    return matricula
+    """Gera o username do Next Term a partir da matrícula exclusivamente (minúscula)."""
+    return matricula.lower()
